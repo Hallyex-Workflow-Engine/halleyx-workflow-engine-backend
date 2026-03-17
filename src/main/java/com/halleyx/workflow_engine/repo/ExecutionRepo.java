@@ -3,6 +3,7 @@ package com.halleyx.workflow_engine.repo;
 import com.halleyx.workflow_engine.entity.Enum.ExecutionStatus;
 import com.halleyx.workflow_engine.entity.Execution;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.UUID;
 public interface ExecutionRepo extends JpaRepository<Execution,UUID> {
     List<Execution> findByWorkflowIdOrderByStartedAtDesc(UUID workflowId);
     List<Execution> findByStatus(ExecutionStatus status);
-
+    @Query("SELECT e FROM Execution e WHERE e.status = 'IN_PROGRESS'")
+    List<Execution> findAllInProgress();
     List<Execution> findAllByOrderByStartedAtDesc();
 }

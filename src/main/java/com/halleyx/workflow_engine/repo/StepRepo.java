@@ -13,4 +13,6 @@ public interface StepRepo extends JpaRepository<Step,UUID> {
     List<Step> findByWorkflowIdOrderByStepOrderAsc(UUID workflowId);
     void deleteByWorkflowId(UUID workflowId);
     int countByWorkflowId(UUID workflowId);
+
+    List<Step> findByWorkflowId(UUID id);
 }

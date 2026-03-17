@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@RequestMapping("/api")
 @RestController
-@CrossOrigin(origins = "*")
 public class RuleController {
 
     @Autowired
