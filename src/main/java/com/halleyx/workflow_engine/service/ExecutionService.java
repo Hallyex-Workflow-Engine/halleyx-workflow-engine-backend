@@ -92,41 +92,46 @@ public class ExecutionService {
                 if (workflow == null) continue;
                 result.add(toResponse(execution, workflow));
             } catch (Exception e) {
-                // skip broken executions silently
+
             }
         }
         return result;
     }
 
     public ExecutionResponse approveStep(UUID executionId, String approverId) {
-
         Execution execution = findExecution(executionId);
-
-        if (execution.getStatus() != ExecutionStatus.IN_PROGRESS)
-            throw new IllegalStateException("Execution is not in progress");
-
+        if (execution.getStatus() != ExecutionStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Execution is not waiting for approval");
+        }
         Step currentStep = findStep(execution.getCurrentStepId());
 
-        if (currentStep.getStepType() != StepType.APPROVAL)
+        if (currentStep.getStepType() != StepType.APPROVAL) {
             throw new IllegalStateException("Current step is not an approval step");
-
+        }
         addLog(execution, currentStep, approverId, null);
-
         Map<String, Object> inputData = fromJson(execution.getInputData());
-
         List<Rule> rules = ruleRepository.findByStepIdOrderByPriorityAsc(currentStep.getId());
+
+        if (rules.isEmpty()) {
+            throw new RuntimeException("No rules found for approval step");
+        }
         String nextStepId = ruleEngine.evaluate(rules, inputData, execution);
 
-        if (nextStepId == null) {
+        if (nextStepId == null || nextStepId.isBlank()) {
+
             execution.setStatus(ExecutionStatus.COMPLETED);
             execution.setEndedAt(LocalDateTime.now());
             execution.setCurrentStepId(null);
+
             execution = executionRepository.save(execution);
-        } else {
-            execution.setCurrentStepId(UUID.fromString(nextStepId));
-            execution = executionRepository.save(execution);
-            execution = processStep(execution, inputData);
+
+            return toResponse(execution, findWorkflow(execution.getWorkflowId()));
         }
+        execution.setCurrentStepId(UUID.fromString(nextStepId));
+        execution.setStatus(ExecutionStatus.IN_PROGRESS);
+
+        execution = executionRepository.save(execution);
+        execution = processStep(execution, inputData);
 
         return toResponse(execution, findWorkflow(execution.getWorkflowId()));
     }
@@ -161,40 +166,41 @@ public class ExecutionService {
     }
 
 
-    private Execution processStep(Execution execution, Map<String, Object> inputData) {
+    public Execution processStep(Execution execution, Map<String, Object> inputData) {
 
-        if (execution.getCurrentStepId() == null) return execution;
-
-        Step step = stepRepository.findById(execution.getCurrentStepId()).orElse(null);
-        if (step == null) return execution;
-
-        try {
-            if (step.getStepType() == StepType.APPROVAL) {
-                return executionRepository.save(execution);
-            }
-
-            addLog(execution, step, null, null);
-
-            List<Rule> rules = ruleRepository.findByStepIdOrderByPriorityAsc(step.getId());
-            String nextStepId = ruleEngine.evaluate(rules, inputData, execution);
-
-            if (nextStepId == null) {
-                execution.setStatus(ExecutionStatus.COMPLETED);
-                execution.setEndedAt(LocalDateTime.now());
-                execution.setCurrentStepId(null);
-            } else {
-                execution.setCurrentStepId(UUID.fromString(nextStepId));
-                execution = executionRepository.save(execution);
-                return processStep(execution, inputData);
-            }
-
-        } catch (Exception e) {
+        if (execution.getRetries() != null && execution.getRetries() > 10) {
             execution.setStatus(ExecutionStatus.FAILED);
-            execution.setEndedAt(LocalDateTime.now());
-            addLog(execution, step, null, e.getMessage());
+            return executionRepository.save(execution);
         }
 
-        return executionRepository.save(execution);
+        Step step = stepRepository.findById(execution.getCurrentStepId())
+                .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        if (step.getStepType() == StepType.APPROVAL) {
+
+            execution.setStatus(ExecutionStatus.IN_PROGRESS);
+            return executionRepository.save(execution); // STOP execution here
+        }
+
+        execution.setRetries(
+                execution.getRetries() == null ? 1 : execution.getRetries() + 1
+        );
+
+        List<Rule> rules = ruleRepository.findByStepIdOrderByPriorityAsc(step.getId());
+
+        String nextStepId = ruleEngine.evaluate(rules, inputData, execution);
+
+        if (nextStepId == null) {
+            execution.setStatus(ExecutionStatus.COMPLETED);
+            execution.setEndedAt(LocalDateTime.now());
+            execution.setCurrentStepId(null);
+            return executionRepository.save(execution);
+        }
+
+        execution.setCurrentStepId(UUID.fromString(nextStepId));
+        execution = executionRepository.save(execution);
+
+        return processStep(execution, inputData);
     }
 
     private void addLog(Execution execution, Step step,
@@ -221,31 +227,30 @@ public class ExecutionService {
 
     private ExecutionResponse toResponse(Execution execution, Workflow workflow) {
 
-        // Step 1 — ModelMapper auto-copies 9 matching fields:
-        // id, workflowId, workflowVersion, status, currentStepId,
-        // retries, triggeredBy, startedAt, endedAt
         ExecutionResponse response = modelMapper.map(execution, ExecutionResponse.class);
 
-        // Step 2 — manually set the 4 fields ModelMapper cannot handle
-
-        // from Workflow object — different source
         response.setWorkflowName(workflow.getName());
 
-        // String JSON → Map (type mismatch)
         response.setInputData(fromJson(execution.getInputData()));
 
-        // String JSON → List (type mismatch)
         response.setLogs(logsFromJson(execution.getLogs()));
 
-        // from Step table — needs a DB query
         if (execution.getCurrentStepId() != null) {
-            String stepName = stepRepository
-                    .findById(execution.getCurrentStepId())
-                    .map(Step::getName)
-                    .orElse(null);
-            response.setCurrentStepName(stepName);
+            stepRepository.findById(execution.getCurrentStepId())
+                    .ifPresent(step -> {
+                        response.setCurrentStepName(step.getName());
+                        try {
+                            if (step.getMetadata() != null && !step.getMetadata().isBlank()) {
+                                Map<String, Object> meta = objectMapper.readValue(
+                                        step.getMetadata(), new TypeReference<>() {}
+                                );
+                                response.setCurrentStepAssigneeEmail(
+                                        (String) meta.get("assignee_email")
+                                );
+                            }
+                        } catch (Exception ignored) {}
+                    });
         }
-
         return response;
     }
 
@@ -287,5 +292,83 @@ public class ExecutionService {
     private Step findStep(UUID id) {
         return stepRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Step id"+ id));
+    }
+
+    public List<ExecutionResponse> getPendingApprovals(String email) {
+        List<Execution> inProgress = executionRepository.findAllInProgress();
+        List<ExecutionResponse> result = new ArrayList<>();
+
+        for (Execution execution : inProgress) {
+            try {
+                if (execution.getCurrentStepId() == null) continue;
+
+                Step currentStep = stepRepository
+                        .findById(execution.getCurrentStepId())
+                        .orElse(null);
+
+                if (currentStep == null) continue;
+
+                if (currentStep.getStepType() != StepType.APPROVAL) continue;
+                String metadata = currentStep.getMetadata();
+                if (metadata == null || metadata.isBlank()) continue;
+
+                Map<String, Object> meta = objectMapper.readValue(
+                        metadata, new TypeReference<>() {}
+                );
+
+                String assigneeEmail = (String) meta.get("assignee_email");
+                if (email.equalsIgnoreCase(assigneeEmail)) {
+                    Workflow workflow = workflowRepository
+                            .findById(execution.getWorkflowId())
+                            .orElse(null);
+                    if (workflow == null) continue;
+                    result.add(toResponse(execution, workflow));
+                }
+
+            } catch (Exception e) {
+            }
+        }
+        return result;
+    }
+    public ExecutionResponse rejectStep(UUID executionId, String rejectorId, String comment) {
+        Execution execution = findExecution(executionId);
+
+        if (execution.getStatus() != ExecutionStatus.IN_PROGRESS)
+            throw new IllegalStateException("Execution is not in progress");
+
+        Step currentStep = findStep(execution.getCurrentStepId());
+
+        if (currentStep.getStepType() != StepType.APPROVAL)
+            throw new IllegalStateException("Current step is not an approval step");
+
+        addLogWithComment(execution, currentStep, rejectorId, "REJECTED: " + comment);
+
+        execution.setStatus(ExecutionStatus.FAILED);
+        execution.setEndedAt(LocalDateTime.now());
+        execution.setCurrentStepId(null);
+        execution = executionRepository.save(execution);
+
+        return toResponse(execution, findWorkflow(execution.getWorkflowId()));
+    }
+
+    private void addLogWithComment(Execution execution, Step step,
+                                   String actorId, String comment) {
+        try {
+            List<Map<String, Object>> logs = objectMapper.readValue(
+                    execution.getLogs(), new TypeReference<>() {});
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("step_name",   step.getName());
+            entry.put("step_type",   step.getStepType().toString());
+            entry.put("status",      "rejected");
+            entry.put("actor_id",    actorId);
+            entry.put("comment",     comment);
+            entry.put("timestamp",   LocalDateTime.now().toString());
+
+            logs.add(entry);
+            execution.setLogs(objectMapper.writeValueAsString(logs));
+        } catch (Exception ignored) {
+            execution.setLogs("[]");
+        }
     }
 }

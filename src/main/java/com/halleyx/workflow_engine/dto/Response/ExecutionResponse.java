@@ -30,4 +30,5 @@ public class ExecutionResponse {
     private String triggeredBy;
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
+    private String currentStepAssigneeEmail; // add this field
 }

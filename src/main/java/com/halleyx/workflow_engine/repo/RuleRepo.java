@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface RuleRepo extends JpaRepository<Rule,UUID> {
     List<Rule> findByStepIdOrderByPriorityAsc(UUID stepId);
     void deleteByStepId(UUID stepId);
+
+    List<Rule> findByStepId(UUID id);
 }

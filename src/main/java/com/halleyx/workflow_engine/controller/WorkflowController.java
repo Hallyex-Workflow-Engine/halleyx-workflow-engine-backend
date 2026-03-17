@@ -6,7 +6,8 @@ import com.halleyx.workflow_engine.dto.Request.WorkflowRequest;
 import com.halleyx.workflow_engine.dto.Response.WorkflowResponse;
 import com.halleyx.workflow_engine.service.WorkflowService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,12 +16,11 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/workflows")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/workflows")
 public class WorkflowController {
 
-    private final WorkflowService workflowService;
+    @Autowired
+    private  WorkflowService workflowService;
     @PostMapping
     public ResponseEntity<WorkflowResponse> createWorkflow(
             @Valid @RequestBody WorkflowRequest request) {
@@ -49,7 +49,7 @@ public class WorkflowController {
             @PathVariable UUID id,
             @Valid @RequestBody WorkflowRequest request) {
 
-        return ResponseEntity.ok(workflowService.updateWorkflow(id, request));
+        return ResponseEntity.ok(workflowService.createNewVersion(id, request));
     }
     @PutMapping("/{id}/start-step/{stepId}")
     public ResponseEntity<WorkflowResponse> setStartStep(
