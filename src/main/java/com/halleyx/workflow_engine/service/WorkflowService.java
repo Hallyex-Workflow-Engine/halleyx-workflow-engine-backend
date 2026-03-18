@@ -48,6 +48,7 @@ public class WorkflowService {
 
         Workflow existing = workflowRepository.findById(workflowId)
                 .orElseThrow(() -> new RuntimeException("Workflow not found"));
+        UUID oldStartStepId = existing.getStartStepId();
 
         existing.setIsActive(false);
         workflowRepository.save(existing);
@@ -55,48 +56,41 @@ public class WorkflowService {
         Workflow newVersion = modelMapper.map(request, Workflow.class);
         newVersion.setVersion(existing.getVersion() + 1);
         newVersion.setIsActive(true);
-
         Workflow savedWorkflow = workflowRepository.save(newVersion);
 
         List<Step> oldSteps = stepRepository.findByWorkflowId(existing.getId());
-
         Map<UUID, UUID> stepIdMapping = new HashMap<>();
 
         for (Step oldStep : oldSteps) {
-
             Step newStep = new Step();
             newStep.setWorkflowId(savedWorkflow.getId());
             newStep.setName(oldStep.getName());
             newStep.setStepType(oldStep.getStepType());
             newStep.setStepOrder(oldStep.getStepOrder());
             newStep.setMetadata(oldStep.getMetadata());
-
             Step savedStep = stepRepository.save(newStep);
-
             stepIdMapping.put(oldStep.getId(), savedStep.getId());
         }
 
         for (Step oldStep : oldSteps) {
-
             List<Rule> rules = ruleRepository.findByStepId(oldStep.getId());
-
             for (Rule oldRule : rules) {
-
                 Rule newRule = new Rule();
                 newRule.setStepId(stepIdMapping.get(oldStep.getId()));
                 newRule.setConditionExpr(oldRule.getConditionExpr());
                 newRule.setPriority(oldRule.getPriority());
                 if (oldRule.getNextStepId() != null) {
-                    newRule.setNextStepId(
-                            stepIdMapping.get(oldRule.getNextStepId())
-                    );
+                    newRule.setNextStepId(stepIdMapping.get(oldRule.getNextStepId()));
                 }
-
                 ruleRepository.save(newRule);
             }
         }
+        if (oldStartStepId != null && stepIdMapping.containsKey(oldStartStepId)) {
+            savedWorkflow.setStartStepId(stepIdMapping.get(oldStartStepId));
+            savedWorkflow = workflowRepository.save(savedWorkflow);
+        }
 
-        return modelMapper.map(savedWorkflow, WorkflowResponse.class);
+        return toResponse(savedWorkflow);
     }
     public List<WorkflowResponse> getAllWorkflows() {
         return workflowRepository.findByIsActiveTrue()
