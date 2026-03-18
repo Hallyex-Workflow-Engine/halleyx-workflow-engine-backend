@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+// model mapperr for convert dto -> entity and entity -> dto
 public class ModelMapperConfig {
 
     @Bean

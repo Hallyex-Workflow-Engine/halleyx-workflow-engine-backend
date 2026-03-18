@@ -22,6 +22,7 @@ import java.util.*;
 
 @Service
 @Transactional
+// import servce for manitain the entire execution . if any problem occurs , it rollback previous state by @Transactional
 public class ExecutionService {
 
     @Autowired
@@ -65,12 +66,44 @@ public class ExecutionService {
 
         execution = executionRepository.save(execution);
 
-        // process first step
         execution = processStep(execution, request.getInputData());
 
         return toResponse(execution, workflow);
     }
+    public Execution processStep(Execution execution, Map<String, Object> inputData) {
 
+        if (execution.getCurrentStepId() == null) return execution;
+
+        if (execution.getRetries() != null && execution.getRetries() > 10) {
+            execution.setStatus(ExecutionStatus.FAILED);
+            return executionRepository.save(execution);
+        }
+
+        Step step = stepRepository.findById(execution.getCurrentStepId())
+                .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        if (step.getStepType() == StepType.APPROVAL) {
+            execution.setStatus(ExecutionStatus.IN_PROGRESS);
+            return executionRepository.save(execution);
+        }
+
+        addLog(execution, step, null, null);
+
+        List<Rule> rules = ruleRepository.findByStepIdOrderByPriorityAsc(step.getId());
+        String nextStepId = ruleEngine.evaluate(rules, inputData, execution);
+
+        if (nextStepId == null) {
+            boolean isRejection = step.getName().toLowerCase().contains("reject");
+            execution.setStatus(isRejection ? ExecutionStatus.FAILED : ExecutionStatus.COMPLETED);
+            execution.setEndedAt(LocalDateTime.now());
+            execution.setCurrentStepId(null);
+            return executionRepository.save(execution);
+        }
+
+        execution.setCurrentStepId(UUID.fromString(nextStepId));
+        execution = executionRepository.save(execution);
+        return processStep(execution, inputData);
+    }
 
     public ExecutionResponse getExecution(UUID executionId) {
         Execution execution = findExecution(executionId);
@@ -166,42 +199,7 @@ public class ExecutionService {
     }
 
 
-    public Execution processStep(Execution execution, Map<String, Object> inputData) {
 
-        if (execution.getRetries() != null && execution.getRetries() > 10) {
-            execution.setStatus(ExecutionStatus.FAILED);
-            return executionRepository.save(execution);
-        }
-
-        Step step = stepRepository.findById(execution.getCurrentStepId())
-                .orElseThrow(() -> new RuntimeException("Step not found"));
-
-        if (step.getStepType() == StepType.APPROVAL) {
-
-            execution.setStatus(ExecutionStatus.IN_PROGRESS);
-            return executionRepository.save(execution); // STOP execution here
-        }
-
-        execution.setRetries(
-                execution.getRetries() == null ? 1 : execution.getRetries() + 1
-        );
-
-        List<Rule> rules = ruleRepository.findByStepIdOrderByPriorityAsc(step.getId());
-
-        String nextStepId = ruleEngine.evaluate(rules, inputData, execution);
-
-        if (nextStepId == null) {
-            execution.setStatus(ExecutionStatus.COMPLETED);
-            execution.setEndedAt(LocalDateTime.now());
-            execution.setCurrentStepId(null);
-            return executionRepository.save(execution);
-        }
-
-        execution.setCurrentStepId(UUID.fromString(nextStepId));
-        execution = executionRepository.save(execution);
-
-        return processStep(execution, inputData);
-    }
 
     private void addLog(Execution execution, Step step,
                         String approverId, String error) {

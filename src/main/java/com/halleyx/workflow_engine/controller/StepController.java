@@ -17,6 +17,7 @@ import java.util.UUID;
 
 @RequestMapping("/api")
 @RestController
+// manage the step amd CRUD operation the rule
 public class StepController {
 
     @Autowired

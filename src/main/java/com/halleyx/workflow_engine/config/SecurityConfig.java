@@ -18,6 +18,8 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+//security filter chain is used to manange authorization for api
+// password encoder for hash the password
 public class SecurityConfig {
 
     @Autowired
@@ -46,17 +48,20 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/workflows/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/steps/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/workflows/**").authenticated()
+
                         .requestMatchers(HttpMethod.PUT, "/api/workflows/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/workflows/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/steps/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/steps/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/steps/**").hasRole("ADMIN")
                         .requestMatchers("/api/rules/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/executions/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/executions").authenticated()
-                        .requestMatchers("/api/executions/*/approve").hasAnyRole("MANAGER", "CEO")
-                        .requestMatchers("/api/executions/*/reject").hasAnyRole("MANAGER", "CEO")
-                        .requestMatchers("/api/users/**").hasRole("ADMIN")
+
+                        // users — all can read, only admin can modify
+                        .requestMatchers(HttpMethod.GET, "/api/users").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/users/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/users/**").hasRole("ADMIN")
 
                         .requestMatchers("/api/executions/**").authenticated()
 

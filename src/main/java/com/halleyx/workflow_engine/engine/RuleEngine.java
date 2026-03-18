@@ -10,6 +10,7 @@ import java.util.*;
 
 @Component
 @Slf4j
+// important mvel evaluates  rule conditions ( amount > 100) from inputData to decide next workflow step
 public class RuleEngine {
 
     public String evaluate(List<Rule> rules,
