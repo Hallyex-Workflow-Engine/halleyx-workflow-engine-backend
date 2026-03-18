@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
+// main auth request
+//  "/register" not implement in fornt end for now
+// hash function for testing / debugg
 public class AuthController {
 
     @Autowired private AuthenticationManager authenticationManager;

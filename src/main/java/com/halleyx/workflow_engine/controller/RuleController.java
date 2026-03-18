@@ -14,6 +14,7 @@ import java.util.UUID;
 
 @RequestMapping("/api")
 @RestController
+// manage the rule amd CRUD operation the rule
 public class RuleController {
 
     @Autowired

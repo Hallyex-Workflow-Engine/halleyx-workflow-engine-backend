@@ -22,6 +22,7 @@ import java.util.*;
 
 @Service
 @Transactional
+// import servce for manitain the entire execution . if any problem occurs , it rollback previous state by @Transactional
 public class ExecutionService {
 
     @Autowired
@@ -65,7 +66,6 @@ public class ExecutionService {
 
         execution = executionRepository.save(execution);
 
-        // process first step
         execution = processStep(execution, request.getInputData());
 
         return toResponse(execution, workflow);
@@ -82,7 +82,6 @@ public class ExecutionService {
         Step step = stepRepository.findById(execution.getCurrentStepId())
                 .orElseThrow(() -> new RuntimeException("Step not found"));
 
-        // APPROVAL — stop and wait for human
         if (step.getStepType() == StepType.APPROVAL) {
             execution.setStatus(ExecutionStatus.IN_PROGRESS);
             return executionRepository.save(execution);
@@ -94,7 +93,6 @@ public class ExecutionService {
         String nextStepId = ruleEngine.evaluate(rules, inputData, execution);
 
         if (nextStepId == null) {
-            // ✅ if step name contains "reject" → FAILED, otherwise COMPLETED
             boolean isRejection = step.getName().toLowerCase().contains("reject");
             execution.setStatus(isRejection ? ExecutionStatus.FAILED : ExecutionStatus.COMPLETED);
             execution.setEndedAt(LocalDateTime.now());

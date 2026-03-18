@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
+// used ot load user name with hashed password
 public class CustomUserDetailsService implements UserDetailsService {
 
     @Autowired
@@ -23,7 +24,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
                 .password(user.getPassword())
-                .roles(user.getRole().name()) // becomes ROLE_ADMIN or ROLE_EMPLOYEE
+                .roles(user.getRole().name())
                 .build();
     }
 }
