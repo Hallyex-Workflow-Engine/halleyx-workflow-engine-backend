@@ -18,8 +18,6 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-//security filter chain is used to manange authorization for api
-// password encoder for hash the password
 public class SecurityConfig {
 
     @Autowired
@@ -36,33 +34,46 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(request -> {
                     var config = new org.springframework.web.cors.CorsConfiguration();
                     config.setAllowedOrigins(List.of("http://localhost:5174"));
-                    config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+                    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                     config.setAllowedHeaders(List.of("*"));
                     config.setAllowCredentials(true);
                     return config;
                 }))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+
+                        // ── Auth (public) ────────────────────────────────
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        .requestMatchers(HttpMethod.GET, "/api/workflows/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/steps/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/workflows/**").authenticated()
+                        // ── User self-service — MUST be before wildcard PUT/DELETE ──
+                        .requestMatchers(HttpMethod.GET,  "/api/users/me").authenticated()
+                        .requestMatchers(HttpMethod.PUT,  "/api/users/me").authenticated()
+                        .requestMatchers(HttpMethod.PUT,  "/api/users/change-password").authenticated()
 
-                        .requestMatchers(HttpMethod.PUT, "/api/workflows/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/workflows/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/steps/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/steps/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/steps/**").hasRole("ADMIN")
-                        .requestMatchers("/api/rules/**").hasRole("ADMIN")
+                        // ── User toggle-active (admin) ───────────────────
+                        .requestMatchers(HttpMethod.PUT,  "/api/users/*/toggle-active").hasRole("ADMIN")
 
-                        // users — all can read, only admin can modify
-                        .requestMatchers(HttpMethod.GET, "/api/users").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/users/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/users").hasRole("ADMIN")
+                        // ── User admin operations ─────────────────────────
+                        .requestMatchers(HttpMethod.GET,    "/api/users").authenticated()
+                        .requestMatchers(HttpMethod.GET,    "/api/users/**").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/api/users").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/users/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/users/**").hasRole("ADMIN")
 
+                        // ── Workflows ─────────────────────────────────────
+                        .requestMatchers(HttpMethod.GET,    "/api/workflows/**").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/api/workflows/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT,    "/api/workflows/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/workflows/**").hasRole("ADMIN")
+
+                        // ── Steps ─────────────────────────────────────────
+                        .requestMatchers(HttpMethod.GET,    "/api/steps/**").authenticated()
+                        .requestMatchers(HttpMethod.POST,   "/api/steps/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/steps/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/steps/**").hasRole("ADMIN")
+
+                        // ── Rules / Executions ────────────────────────────
+                        .requestMatchers("/api/rules/**").hasRole("ADMIN")
                         .requestMatchers("/api/executions/**").authenticated()
 
                         .anyRequest().authenticated()
