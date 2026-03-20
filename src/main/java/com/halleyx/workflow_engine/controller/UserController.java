@@ -1,70 +1,75 @@
 package com.halleyx.workflow_engine.controller;
 
-
+import com.halleyx.workflow_engine.dto.Request.ChangePasswordRequest;
 import com.halleyx.workflow_engine.dto.Request.RegisterRequest;
+import com.halleyx.workflow_engine.dto.Request.UpdateProfileRequest;
 import com.halleyx.workflow_engine.dto.Response.UserResponse;
-import com.halleyx.workflow_engine.entity.Enum.Role;
-import com.halleyx.workflow_engine.entity.User;
-import com.halleyx.workflow_engine.repo.UserRepo;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.halleyx.workflow_engine.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
-    @Autowired private UserRepo userRepository;
-    @Autowired private PasswordEncoder passwordEncoder;
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
-        return ResponseEntity.ok(
-                userRepository.findAll().stream()
-                        .map(u -> new UserResponse(u.getId(), u.getName(),
-                                u.getEmail(), u.getRole()))
-                        .collect(Collectors.toList())
-        );
+        return ResponseEntity.ok(userService.getAllUsers());
     }
 
     @PostMapping
-    public ResponseEntity<?> createUser(@RequestBody RegisterRequest req) {
-        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().body("Email already exists");
-        }
-        User user = new User();
-        user.setName(req.getName());
-        user.setEmail(req.getEmail());
-        user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setRole(req.getRole() != null ? req.getRole() : Role.EMPLOYEE);
-        userRepository.save(user);
-        return ResponseEntity.ok(
-                new UserResponse(user.getId(), user.getName(),
-                        user.getEmail(), user.getRole())
-        );
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody RegisterRequest request) {
+        return ResponseEntity.ok(userService.createUser(request));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable String id) {
-        userRepository.deleteById(id);
+        userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{id}/role")
-    public ResponseEntity<?> updateRole(@PathVariable String id,
-                                        @RequestBody Map<String, String> body) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        user.setRole(Role.valueOf(body.get("role")));
-        userRepository.save(user);
-        return ResponseEntity.ok(
-                new UserResponse(user.getId(), user.getName(),
-                        user.getEmail(), user.getRole())
-        );
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getMyProfile(Authentication auth) {
+        return ResponseEntity.ok(userService.getMyProfile(auth.getName()));
+    }
+
+    // Self-update: name, phone, avatarUrl only (validated, no role/isActive)
+    @PutMapping("/me")
+    public ResponseEntity<UserResponse> updateMyProfile(
+            Authentication auth,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        return ResponseEntity.ok(userService.updateMyProfile(auth.getName(), request));
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<String> changePassword(
+            Authentication auth,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(auth.getName(), request);
+        return ResponseEntity.ok("Password updated successfully");
+    }
+
+    // Admin: partial update any user (role, name, phone, avatarUrl)
+    @PutMapping("/{id}")
+    public ResponseEntity<UserResponse> updateUser(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        return ResponseEntity.ok(userService.updateUser(id, request));
+    }
+
+    // Admin: toggle active/inactive — no body needed
+    @PutMapping("/{id}/toggle-active")
+    public ResponseEntity<UserResponse> toggleActive(@PathVariable String id) {
+        return ResponseEntity.ok(userService.toggleActive(id));
     }
 }
