@@ -18,6 +18,8 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+//security filter chain is used to manage authorization for api
+// password encoder for hash the password
 public class SecurityConfig {
 
     @Autowired
