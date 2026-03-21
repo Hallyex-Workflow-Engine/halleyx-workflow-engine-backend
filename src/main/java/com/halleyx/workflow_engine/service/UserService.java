@@ -28,7 +28,6 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // ── Read ──────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
@@ -43,7 +42,6 @@ public class UserService {
         return toResponse(findByEmailOrThrow(email));
     }
 
-    // ── Write ─────────────────────────────────────────────────────────────────
 
     public UserResponse createUser(RegisterRequest request) {
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
@@ -101,7 +99,6 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
-    // Toggle isActive — no request body, just flips the flag
     public UserResponse toggleActive(String id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -110,7 +107,6 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private User findByEmailOrThrow(String email) {
         return userRepository.findByEmail(email)
