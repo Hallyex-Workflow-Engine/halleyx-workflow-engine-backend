@@ -43,11 +43,7 @@ public class SecurityConfig {
                 }))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-
-                        // ── Auth (public) ────────────────────────────────
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        // ── User self-service — MUST be before wildcard PUT/DELETE ──
                         .requestMatchers(HttpMethod.GET,  "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.PUT,  "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.PUT,  "/api/users/change-password").authenticated()
