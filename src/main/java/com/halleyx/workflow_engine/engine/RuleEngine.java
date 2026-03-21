@@ -29,7 +29,6 @@ public class RuleEngine {
         this.userRepo     = userRepo;
     }
 
-
     public String evaluate(List<Rule> rules,
                            Map<String, Object> inputData,
                            Execution execution) {
@@ -49,9 +48,7 @@ public class RuleEngine {
             if (matched) {
                 log.info("Rule matched! Next step id = {}", rule.getNextStepId());
 
-                // ── Notify FINANCE_HEAD users by email ────────────────────
                 notifyFinanceHeads(rule, execution);
-                // ─────────────────────────────────────────────────────────
 
                 if (rule.getNextStepId() == null) {
                     return null;
@@ -67,7 +64,6 @@ public class RuleEngine {
         throw new IllegalStateException(
                 "No rule matched. Ensure a DEFAULT rule exists.");
     }
-
 
     public List<Map<String, Object>> evaluateWithDetails(
             List<Rule> rules,
@@ -103,7 +99,6 @@ public class RuleEngine {
         return results;
     }
 
-
     private boolean evaluateCondition(String condition,
                                       Map<String, Object> inputData) {
         if (condition == null || condition.trim().equalsIgnoreCase("DEFAULT")) {
@@ -118,10 +113,13 @@ public class RuleEngine {
         }
     }
 
-
+    /**
+     * Sends a plain-text alert email to every active FINANCE_HEAD user.
+     * Runs asynchronously via @Async on EmailService — never blocks evaluation.
+     */
     private void notifyFinanceHeads(Rule rule, Execution execution) {
         try {
-            List<User> heads = userRepo.findByRoleAndIsActiveTrue((Role.FINANCE_HEAD));
+            List<User> heads = userRepo.findByRoleAndIsActiveTrue(Role.FINANCE_HEAD);
             if (heads.isEmpty()) {
                 log.debug("[RuleEngine] No active FINANCE_HEAD users — skipping email.");
                 return;
@@ -131,8 +129,10 @@ public class RuleEngine {
                     ? "Workflow #" + execution.getWorkflowId()
                     : "Unknown Workflow";
 
-            String ruleName  = rule.getConditionExpr() != null ? rule.getConditionExpr() : "Unnamed Rule";
-            String condition = rule.getConditionExpr() != null ? rule.getConditionExpr() : "DEFAULT";
+            String ruleName  = rule.getConditionExpr() != null
+                    ? rule.getConditionExpr() : "Unnamed Rule";
+            String condition = rule.getConditionExpr() != null
+                    ? rule.getConditionExpr() : "DEFAULT";
             String time      = LocalDateTime.now().format(FMT);
 
             for (User user : heads) {
@@ -145,7 +145,8 @@ public class RuleEngine {
                         user.getName(), user.getEmail());
             }
         } catch (Exception e) {
-            log.error("[RuleEngine] Failed to send finance notification email: {}", e.getMessage());
+            log.error("[RuleEngine] Failed to send finance notification email: {}",
+                    e.getMessage());
         }
     }
 
