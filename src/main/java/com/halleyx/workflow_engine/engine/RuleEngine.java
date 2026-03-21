@@ -113,10 +113,7 @@ public class RuleEngine {
         }
     }
 
-    /**
-     * Sends a plain-text alert email to every active FINANCE_HEAD user.
-     * Runs asynchronously via @Async on EmailService — never blocks evaluation.
-     */
+   
     private void notifyFinanceHeads(Rule rule, Execution execution) {
         try {
             List<User> heads = userRepo.findByRoleAndIsActiveTrue(Role.FINANCE_HEAD);
