@@ -43,7 +43,6 @@ public class UserController {
         return ResponseEntity.ok(userService.getMyProfile(auth.getName()));
     }
 
-    // Self-update: name, phone, avatarUrl only (validated, no role/isActive)
     @PutMapping("/me")
     public ResponseEntity<UserResponse> updateMyProfile(
             Authentication auth,
@@ -67,7 +66,6 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(id, request));
     }
 
-    // Admin: toggle active/inactive — no body needed
     @PutMapping("/{id}/toggle-active")
     public ResponseEntity<UserResponse> toggleActive(@PathVariable String id) {
         return ResponseEntity.ok(userService.toggleActive(id));

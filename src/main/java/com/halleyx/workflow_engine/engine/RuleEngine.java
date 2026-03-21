@@ -29,7 +29,6 @@ public class RuleEngine {
         this.userRepo     = userRepo;
     }
 
-    // ── Main evaluation ───────────────────────────────────────────────────────
 
     public String evaluate(List<Rule> rules,
                            Map<String, Object> inputData,
@@ -69,7 +68,6 @@ public class RuleEngine {
                 "No rule matched. Ensure a DEFAULT rule exists.");
     }
 
-    // ── Detail evaluation (unchanged) ─────────────────────────────────────────
 
     public List<Map<String, Object>> evaluateWithDetails(
             List<Rule> rules,
@@ -105,7 +103,6 @@ public class RuleEngine {
         return results;
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
 
     private boolean evaluateCondition(String condition,
                                       Map<String, Object> inputData) {
@@ -121,10 +118,7 @@ public class RuleEngine {
         }
     }
 
-    /**
-     * Sends a plain-text alert email to every active FINANCE_HEAD user.
-     * Runs asynchronously via @Async on EmailService — never blocks evaluation.
-     */
+
     private void notifyFinanceHeads(Rule rule, Execution execution) {
         try {
             List<User> heads = userRepo.findByRoleAndIsActiveTrue((Role.FINANCE_HEAD));
@@ -133,12 +127,10 @@ public class RuleEngine {
                 return;
             }
 
-            // Execution only has workflowId — use it as a reference string
             String workflowName = execution != null && execution.getWorkflowId() != null
                     ? "Workflow #" + execution.getWorkflowId()
                     : "Unknown Workflow";
 
-            // Rule fields — paste your Rule entity and these will be updated
             String ruleName  = rule.getConditionExpr() != null ? rule.getConditionExpr() : "Unnamed Rule";
             String condition = rule.getConditionExpr() != null ? rule.getConditionExpr() : "DEFAULT";
             String time      = LocalDateTime.now().format(FMT);
@@ -153,7 +145,6 @@ public class RuleEngine {
                         user.getName(), user.getEmail());
             }
         } catch (Exception e) {
-            // Never let email failure break rule evaluation
             log.error("[RuleEngine] Failed to send finance notification email: {}", e.getMessage());
         }
     }
